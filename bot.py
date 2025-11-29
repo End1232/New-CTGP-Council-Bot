@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
+import json
 
 intents = discord.Intents.all()
 intents.message_content = True
@@ -12,8 +13,9 @@ bot = commands.Bot(command_prefix="'", intents=intents)
 
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-COUNCIL_ID = 1444154602340614306
-
+COUNCIL_SHEET_ID = os.getenv("COUNCIL_SHEET_ID")
+COUNCIL_ROLE_ID = 1444154602340614306
+ADMIN_ROLE_ID = 228909597090512896
 
 """
 Ensure all required files are present - 
@@ -34,6 +36,32 @@ def check_files():
     
     return True
     
+def initialise_council(all_users : list, output_path="council.json"):
+    council_data = {}
+    
+    for user in all_users:
+        if "Track Council" in user.roles:
+            if user.id not in council_data:
+                council_data[user.id] = {
+                    "user_name" : user.name,
+                    "user_id"   : user.id,
+                    "role"      : "council"
+                }
+            
+            if "Admin" in user.roles:
+                council_data[user.id]["role"] = "admin"
+    
+    with open(output_path, "w") as file:
+        json.dump(council_data, file, indent=4)
+    
+    return council_data
+    # for each member with council role
+    #   # if user not in council_data
+    #   #   # council_data[user] = {user_name: user.name, user_id : user.id, role : "council"}
+    #   #   # if user has admin role
+    #   #   #   # council_data[user][role] = "admin"
+
+    # export to json
 
 @bot.event
 async def on_ready():
@@ -56,6 +84,5 @@ async def get_user_info(interaction: discord.Interaction):
     embed.add_field(name="User ID", value=user.id, inline=True)
     embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
     await interaction.response.send_message(embed=embed)
-
 
 bot.run(DISCORD_TOKEN)
