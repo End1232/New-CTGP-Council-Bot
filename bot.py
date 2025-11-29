@@ -11,6 +11,10 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="'", intents=intents)
 
+"""
+Load environment variables from PRIVATE .env file
+
+"""
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COUNCIL_SHEET_ID = os.getenv("COUNCIL_SHEET_ID")
@@ -25,25 +29,29 @@ Ensure all required files are present -
 
 """
 def check_files():
-    # .env
     if not os.path.exists(".env"):
         print("No environment found - Please ensure the file '.env' exists in the same folder as 'bot.py'")
         return False
     
-    # council.json
     if not os.path.exists("council.json"):
         print("No council.json found - Please ensure the file 'council.json' exists in the same folder as 'bot.py'")
         return False
     
     return True
 
-@bot.tree.command(name="echo", description="Echoes a message.")
-@app_commands.describe(message="The message to echo.")
-async def echo(interaction: discord.Interaction, message: str):
-    await interaction.response.send_message(message)
+"""
+Slash Commands
 
+"""
+
+"""
+TEST COMMAND - Gets information about a user.
+Input fields - None (uses interaction user)
+Output - Embed containing user information
+
+"""
 @bot.tree.command(name="get_user_info", description="Gets information about a user.")
-#@app_commands.describe(user="The user to get information about.")
+@app_commands.describe(user="The user to get information about.")
 async def get_user_info(interaction: discord.Interaction):
     user = interaction.user
     embed = discord.Embed(title="User Information", color=discord.Color.blue())
@@ -53,7 +61,13 @@ async def get_user_info(interaction: discord.Interaction):
     embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="initialise_council", description="Rewrite the council json.")
+"""
+<admin> 
+Initialises/Rebuilds the private local .json (used for quick response times, run this command whenever new members are added)
+    - Will add an auto update feature later, perhaps every 24 hours?
+
+"""
+@bot.tree.command(name="initialise_council", description="Rebuild the council json.")
 async def initialise_council(interaction: discord.Interaction):
     council_data = {}
     
@@ -74,8 +88,14 @@ async def initialise_council(interaction: discord.Interaction):
 
     await interaction.response.send_message("Council JSON Rebuilt.")
 
+
+"""
+Runs every time the bot is restarted, 
+
+"""
 @bot.event
 async def on_ready():
+    check_files() # validate files
     print("Bot is ready")
     await bot.tree.sync()  # sync slash commands
     print("Slash commands synced.")
