@@ -51,7 +51,6 @@ Output - Embed containing user information
 
 """
 @bot.tree.command(name="get_user_info", description="Gets information about a user.")
-@app_commands.describe(user="The user to get information about.")
 async def get_user_info(interaction: discord.Interaction):
     user = interaction.user
     embed = discord.Embed(title="User Information", color=discord.Color.blue())
