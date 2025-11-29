@@ -14,6 +14,27 @@ load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COUNCIL_ID = 1444154602340614306
 
+
+"""
+Ensure all required files are present - 
+<private> .env - Contains bot token
+<private> council.json - Contains user IDs and info of council members
+
+"""
+def check_files():
+    # .env
+    if not os.path.exists(".env"):
+        print("No environment found - Please ensure the file '.env' exists in the same folder as 'bot.py'")
+        return False
+    
+    # council.json
+    if not os.path.exists("council.json"):
+        print("No council.json found - Please ensure the file 'council.json' exists in the same folder as 'bot.py'")
+        return False
+    
+    return True
+    
+
 @bot.event
 async def on_ready():
     print("Bot is ready")
