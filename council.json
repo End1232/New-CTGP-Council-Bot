@@ -1,1 +1,22 @@
-{}
+{
+    "235148962103951360": {
+        "user_name": "Carl-bot",
+        "user_id": 235148962103951360,
+        "role": "council"
+    },
+    "552616881656168486": {
+        "user_name": "endprocess",
+        "user_id": 552616881656168486,
+        "role": "admin"
+    },
+    "745639461173329983": {
+        "user_name": "horizon5851",
+        "user_id": 745639461173329983,
+        "role": "admin"
+    },
+    "758694243535159327": {
+        "user_name": "endp_",
+        "user_id": 758694243535159327,
+        "role": "admin"
+    }
+}

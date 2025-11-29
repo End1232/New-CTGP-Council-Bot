@@ -14,12 +14,13 @@ bot = commands.Bot(command_prefix="'", intents=intents)
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COUNCIL_SHEET_ID = os.getenv("COUNCIL_SHEET_ID")
-COUNCIL_ROLE_ID = 1444154602340614306
-ADMIN_ROLE_ID = 228909597090512896
+COUNCIL_ROLE_ID = os.getenv("COUNCIL_ROLE_ID")
+ADMIN_ROLE_ID = os.getenv("ADMIN_ROLE_ID")
+OPERATOR_ROLE_ID = os.getenv("OPERATOR_ROLE_ID")
 
 """
 Ensure all required files are present - 
-<private> .env - Contains bot token
+<private> .env - Contains bot token, council sheet key and other data which should be kept secure
 <private> council.json - Contains user IDs and info of council members
 
 """
@@ -35,39 +36,6 @@ def check_files():
         return False
     
     return True
-    
-def initialise_council(all_users : list, output_path="council.json"):
-    council_data = {}
-    
-    for user in all_users:
-        if "Track Council" in user.roles:
-            if user.id not in council_data:
-                council_data[user.id] = {
-                    "user_name" : user.name,
-                    "user_id"   : user.id,
-                    "role"      : "council"
-                }
-            
-            if "Admin" in user.roles:
-                council_data[user.id]["role"] = "admin"
-    
-    with open(output_path, "w") as file:
-        json.dump(council_data, file, indent=4)
-    
-    return council_data
-    # for each member with council role
-    #   # if user not in council_data
-    #   #   # council_data[user] = {user_name: user.name, user_id : user.id, role : "council"}
-    #   #   # if user has admin role
-    #   #   #   # council_data[user][role] = "admin"
-
-    # export to json
-
-@bot.event
-async def on_ready():
-    print("Bot is ready")
-    await bot.tree.sync()  # sync slash commands
-    print("Slash commands synced.")
 
 @bot.tree.command(name="echo", description="Echoes a message.")
 @app_commands.describe(message="The message to echo.")
@@ -84,5 +52,32 @@ async def get_user_info(interaction: discord.Interaction):
     embed.add_field(name="User ID", value=user.id, inline=True)
     embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
     await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="initialise_council", description="Rewrite the council json.")
+async def initialise_council(interaction: discord.Interaction):
+    council_data = {}
+    
+    for user in interaction.guild.members:
+        if any(role.id == "Track Council" for role in user.roles):
+            if user.id not in council_data:
+                council_data[user.id] = {
+                    "user_name" : user.name,
+                    "user_id"   : user.id,
+                    "role"      : "council"
+                }
+            
+            if any(role.name == "admin" for role in user.roles):
+                council_data[user.id]["role"] = "admin"
+    
+    with open("council.json", "w") as file:
+        json.dump(council_data, file, indent=4)
+
+    await interaction.response.send_message("Council JSON Rebuilt.")
+
+@bot.event
+async def on_ready():
+    print("Bot is ready")
+    await bot.tree.sync()  # sync slash commands
+    print("Slash commands synced.")
 
 bot.run(DISCORD_TOKEN)
