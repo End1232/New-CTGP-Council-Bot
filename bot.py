@@ -1,55 +1,61 @@
 import discord
-from discord import app_commands
+#from discord import app_commands
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import json
 
+import gspread
+from google.oauth2.service_account import Credentials
+
+# ---------- Intents ----------
 intents = discord.Intents.all()
 intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="'", intents=intents)
 
-"""
-Load environment variables from PRIVATE .env file
-
-"""
+# ---------- Load environment ----------
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-COUNCIL_SHEET_ID = os.getenv("COUNCIL_SHEET_ID")
 COUNCIL_ROLE_ID = os.getenv("COUNCIL_ROLE_ID")
-ADMIN_ROLE_ID = os.getenv("ADMIN_ROLE_ID")
-OPERATOR_ROLE_ID = os.getenv("OPERATOR_ROLE_ID")
+BACKROOM_SHEET_ID = os.getenv("BACKROOM_SHEET_ID")
+TEST_GUILD_ID = int(os.getenv("TEST_GUILD_ID"))  # for instant slash command sync
 
-"""
-Ensure all required files are present - 
-<private> .env - Contains bot token, council sheet key and other data which should be kept secure
-<private> council.json - Contains user IDs and info of council members
+scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
+client = gspread.authorize(creds)
 
-"""
+backroom_page = client.open_by_key(BACKROOM_SHEET_ID)
+
+
+class Track:
+    def __init__(self, row_index, row_data):
+        self.name = row_data[0]
+        self.authors = row_data[1]
+        self.ver = row_data[2]
+
+        # Extract URL from =HYPERLINK("url","label")
+        formula = row_data[3]
+        self.link = formula.split('"')[1] if formula and "HYPERLINK" in formula else None
+
+
+# ---------- File check ----------
 def check_files():
     if not os.path.exists(".env"):
-        print("No environment found - Please ensure the file '.env' exists in the same folder as 'bot.py'")
+        print("Missing .env file")
         return False
-    
     if not os.path.exists("council.json"):
-        print("No council.json found - Please ensure the file 'council.json' exists in the same folder as 'bot.py'")
+        print("Missing council.json")
         return False
-    
     return True
 
-"""
-Slash Commands
+if not check_files():
+    print("Error: Required files missing. Exiting...")
+    exit(1)
 
-"""
+# ---------- Slash commands ----------
 
-"""
-TEST COMMAND - Gets information about a user.
-Input fields - None (uses interaction user)
-Output - Embed containing user information
-
-"""
 @bot.tree.command(name="get_user_info", description="Gets information about a user.")
 async def get_user_info(interaction: discord.Interaction):
     user = interaction.user
@@ -60,43 +66,78 @@ async def get_user_info(interaction: discord.Interaction):
     embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
     await interaction.response.send_message(embed=embed)
 
-"""
-<admin> 
-Initialises/Rebuilds the private local .json (used for quick response times, run this command whenever new members are added)
-    - Will add an auto update feature later, perhaps every 24 hours?
-
-"""
 @bot.tree.command(name="initialise_council", description="Rebuild the council json.")
 async def initialise_council(interaction: discord.Interaction):
     council_data = {}
-    
     for user in interaction.guild.members:
-        if any(role.id == "Track Council" for role in user.roles):
-            if user.id not in council_data:
-                council_data[user.id] = {
-                    "user_name" : user.name,
-                    "user_id"   : user.id,
-                    "role"      : "council"
-                }
-            
-            if any(role.name == "admin" for role in user.roles):
+        if any(role.name == "Track Council" for role in user.roles):
+            council_data[user.id] = {
+                "user_name": user.name,
+                "user_id": user.id,
+                "role": "council"
+            }
+            if any(role.name.lower() == "admin" for role in user.roles):
                 council_data[user.id]["role"] = "admin"
-    
-    with open("council.json", "w") as file:
-        json.dump(council_data, file, indent=4)
 
-    await interaction.response.send_message("Council JSON Rebuilt.")
+    with open("council.json", "w") as f:
+        json.dump(council_data, f, indent=4)
+
+    await interaction.response.send_message("Council JSON rebuilt.")
 
 
-"""
-Runs every time the bot is restarted, 
+offset = 3
+tracks_in_update = 9
 
-"""
+start_row = offset + 1
+end_row   = offset + tracks_in_update + 1
+
+@bot.tree.command(name="updates", description="Show Backrooms track list")
+async def updates(interaction: discord.Interaction):
+
+    sheet = backroom_page.worksheet("Update Queue")
+    data = sheet.get(f"C{start_row}:F{end_row}", value_render_option="FORMULA")
+
+
+    # Build track objects
+    tracks = []
+    for i, row in enumerate(data):
+        track = Track(i + 1, row)
+        print(row)
+        tracks.append(track)
+
+    embed = discord.Embed(color=discord.Color.blue())
+
+    for track in tracks:
+        field_value = (
+            f"**by: ** {track.authors}\n"
+            f"v{track.ver}\n"
+            f"[Link]({track.link})"
+        )
+
+        embed.add_field(
+            name=track.name,
+            value=field_value,
+            inline=False
+        )
+
+    await interaction.response.send_message(embed=embed)
+
+# ---------- Events ----------
+
 @bot.event
 async def on_ready():
-    check_files() # validate files
-    print("Bot is ready")
-    await bot.tree.sync()  # sync slash commands
-    print("Slash commands synced.")
+    print(f"Bot logged in as {bot.user} (ID: {bot.user.id})")
+    guild = discord.Object(id=TEST_GUILD_ID)
+    await bot.tree.sync(guild=guild)
+    print("Slash commands synced in test guild!")
 
+@bot.event
+async def on_interaction(interaction: discord.Interaction):
+    if interaction.type == discord.InteractionType.application_command:
+        command_name = interaction.data.get("name")
+        user = interaction.user
+        guild = interaction.guild
+        print(f"[COMMAND] {guild} - {user} used /{command_name}")
+
+# ---------- Run ----------
 bot.run(DISCORD_TOKEN)
